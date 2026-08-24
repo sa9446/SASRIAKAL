@@ -38,7 +38,11 @@ class NoisePreprocessor:
     def __init__(self):
         self.face_cascade = cv2.CascadeClassifier(self.FACE_CASCADE_PATH)
         if self.face_cascade.empty():
-            raise RuntimeError(f"Failed to load face cascade: {self.FACE_CASCADE_PATH}")
+            import logging
+            logging.getLogger("sasriakal.preprocess").warning(
+                f"Face cascade not found at {self.FACE_CASCADE_PATH} — face detection disabled"
+            )
+            self.face_cascade = None
 
     def dwt_denoise(self, image: np.ndarray) -> np.ndarray:
         """
@@ -107,6 +111,9 @@ class NoisePreprocessor:
         Detect faces using Haar cascade classifier.
         Returns list of FaceROI objects sorted by area (largest first).
         """
+        if self.face_cascade is None:
+            h, w = image.shape[:2]
+            return [FaceROI(x=0, y=0, w=w, h=h, confidence=0.5)]
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
 
         # Enhance contrast for better detection

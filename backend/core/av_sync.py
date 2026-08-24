@@ -93,20 +93,28 @@ class AVDesyncEngine:
         self._init_mediapipe()
 
     def _init_mediapipe(self):
-        """Initialize MediaPipe Face Mesh for lip landmark detection."""
+        """Initialize MediaPipe Face Mesh for lip landmark detection.
+        Tries legacy solutions API first, falls back to Tasks API, then to no-op.
+        """
         try:
             import mediapipe as mp
-            self.mp_face_mesh = mp.solutions.face_mesh
-            self.face_mesh = self.mp_face_mesh.FaceMesh(
-                static_image_mode=False,
-                max_num_faces=3,
-                refine_landmarks=True,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5,
-            )
-            logger.info("MediaPipe Face Mesh initialized")
-        except ImportError:
-            logger.warning("MediaPipe not available; AV sync will use fallback method")
+            # Try legacy solutions API (MediaPipe < 1.0)
+            if hasattr(mp, 'solutions'):
+                self.mp_face_mesh = mp.solutions.face_mesh
+                self.face_mesh = self.mp_face_mesh.FaceMesh(
+                    static_image_mode=False,
+                    max_num_faces=3,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5,
+                )
+                logger.info("MediaPipe Face Mesh initialized (legacy API)")
+            else:
+                logger.warning("MediaPipe 1.0+ detected; using fallback viseme estimation (solutions API removed)")
+                self.face_mesh = None
+        except Exception as e:
+            logger.warning(f"MediaPipe not available: {e}; AV sync will use fallback method")
+            self.face_mesh = None
 
     def extract_visemes(self, frame: np.ndarray, timestamp_ms: float) -> Optional[VisemeFrame]:
         """

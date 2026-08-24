@@ -23,13 +23,13 @@ const VideoPlayer = forwardRef(({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720, facingMode: 'user' },
-        audio: true,
+        audio: false,
       })
 
       const video = videoContainerRef.current?.querySelector('video')
       if (video) {
         video.srcObject = stream
-        video.play()
+        await video.play()
         setSource('webcam')
         setIsWebcamActive(true)
       }
@@ -73,16 +73,17 @@ const VideoPlayer = forwardRef(({
       captureIntervalRef.current = setInterval(() => {
         const video = videoContainerRef.current?.querySelector('video')
         if (!video || video.paused || video.ended) return
+        if (video.videoWidth === 0 || video.videoHeight === 0) return
 
         const canvas = document.createElement('canvas')
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
+        canvas.width = 640
+        canvas.height = 360
         const ctx = canvas.getContext('2d')
-        ctx.drawImage(video, 0, 0)
+        ctx.drawImage(video, 0, 0, 640, 360)
 
-        const base64 = canvas.toDataURL('image/jpeg', 0.85)
+        const base64 = canvas.toDataURL('image/jpeg', 0.7)
         onFrameCapture(base64)
-      }, 1000 / 15) // 15 FPS
+      }, 1000 / 2) // 2 FPS — matches backend CPU processing speed
     }
 
     return () => {

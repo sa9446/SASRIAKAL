@@ -4,6 +4,7 @@ Asynchronous WebSocket streaming for real-time deepfake detection,
 REST endpoints for batch processing and evidence report generation.
 """
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -225,14 +226,15 @@ async def websocket_stream(websocket: WebSocket):
                 await websocket.send_json({"error": f"Frame decode failed: {str(e)}"})
                 continue
 
-            # Preprocess: DWT noise removal
-            cleaned_frame = preprocessor.denoise_frame(frame)
+            # Run CPU-bound preprocessing + inference in a thread
+            # to avoid blocking the asyncio event loop
+            def _process_frame(f_bytes, f):
+                cleaned = preprocessor.denoise_frame(f)
+                conf, heat, scores = model.predict(cleaned)
+                h = hashlib.sha256(f_bytes).hexdigest()[:16]
+                return conf, heat, scores, h
 
-            # Run ensemble inference
-            confidence, heatmap_boxes, layer_scores = model.predict(cleaned_frame)
-
-            # Compute frame hash for evidence chain
-            frame_hash = hashlib.sha256(frame_bytes).hexdigest()[:16]
+            confidence, heatmap_boxes, layer_scores, frame_hash = await asyncio.to_thread(_process_frame, frame_bytes, frame)
 
             # AV Desync analysis (if audio data present)
             av_desync_result = {"score": 0.0, "phonemes": [], "visemes": [], "offset_ms": 0.0}
@@ -240,7 +242,9 @@ async def websocket_stream(websocket: WebSocket):
             if audio_data:
                 try:
                     audio_np = np.frombuffer(base64.b64decode(audio_data), dtype=np.float32)
-                    av_desync_result = av_engine.analyze_av_sync(frame, audio_np)
+                    av_desync_result = await asyncio.to_thread(
+                        av_engine.analyze_av_sync, frame, audio_np
+                    )
                 except Exception as e:
                     logger.warning(f"AV desync failed: {e}")
 
