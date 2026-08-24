@@ -1,190 +1,198 @@
-# SASRIAKAL — Real-Time Deepfake Detection Platform
+<div align="center">
 
-A production-ready, real-time deepfake detection platform featuring local browser inference (ONNX WebAssembly), high-throughput FastAPI streaming fallback, custom heatmap overlays, and a court-ready evidence reporting engine.
+# 🛡️ SASRIAKAL
+
+### Real-Time Deepfake Detection Platform
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688?style=flat&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.1+-EE4C2C?style=flat&logo=pytorch&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+**Local browser inference (ONNX WASM) · FastAPI streaming fallback · Custom heatmap overlays · Court-ready evidence reports**
+
+[Quick Start](#-quick-start) · [Features](#-features) · [API](#-api-reference) · [Docker](#-docker) · [Architecture](#-architecture)
+
+</div>
 
 ---
 
-## Architecture Overview
+## 📁 Project Structure
 
 ```
-sasriakal-ai/
-├── extension/                   # Manifest V3 Chrome Extension
+sasriakal/
+├── extension/                        # Manifest V3 Chrome Extension
 │   ├── manifest.json
-│   ├── background.js           # Offscreen Canvas Worker & WebSocket Manager
-│   ├── content.js              # DOM Interception & Canvas Overlay Injector
-│   ├── overlay.js              # Real-time Gradient Heatmap Renderer
-│   └── popup/                  # Extension UI Dashboard
-├── backend/                     # FastAPI & Python Engine
-│   ├── main.py                 # FastAPI Application & WebSocket Routes
+│   ├── background.js                # Offscreen worker & WebSocket manager
+│   ├── content.js                   # DOM video interception & canvas overlay
+│   ├── overlay.js                   # Real-time gradient heatmap renderer
+│   ├── offscreen.html               # ONNX WASM inference context
+│   └── popup/                       # Extension dashboard UI
+│       ├── popup.html
+│       └── popup.js
+├── backend/                          # FastAPI & Python Engine
+│   ├── main.py                      # FastAPI app, WebSocket & REST routes
+│   ├── config.py                    # Centralized env-based configuration
 │   ├── core/
-│   │   ├── preprocess.py       # DWT Denoising & Face Cropping
-│   │   ├── model.py            # PyTorch MesoInception-4 & ResNet-50 Ensemble
-│   │   ├── av_sync.py          # Phoneme-Viseme AV Desync Engine
-│   │   └── c2pa_parser.py      # C2PA Metadata & Signature Inspector
+│   │   ├── preprocess.py            # 2D DWT denoising & face detection
+│   │   ├── model.py                 # MesoInception-4 + ResNet-50 ensemble
+│   │   ├── av_sync.py               # Phoneme-viseme AV desync engine
+│   │   └── c2pa_parser.py           # C2PA provenance & signature inspector
 │   ├── utils/
-│   │   └── pdf_generator.py    # Legal Evidence PDF Builder (ReportLab)
-│   └── models/                 # ONNX Export Script
-├── web-dashboard/               # React + Tailwind Frontend
+│   │   └── pdf_generator.py         # Court-ready evidence PDF (ReportLab)
+│   ├── models/                      # ONNX export script
+│   ├── tests/                       # Unit tests (pytest)
+│   │   ├── test_config.py
+│   │   ├── test_preprocess.py
+│   │   ├── test_model.py
+│   │   └── test_av_sync.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── web-dashboard/                    # React + Tailwind Frontend
 │   ├── src/
-│   │   ├── components/         # Live Video, Heatmap, Metrics, Panels
-│   │   └── App.jsx
-│   └── package.json
+│   │   ├── components/
+│   │   │   ├── Header.jsx
+│   │   │   ├── VideoPlayer.jsx
+│   │   │   ├── HeatmapControls.jsx
+│   │   │   ├── MetricsPanel.jsx
+│   │   │   ├── AVDesyncPanel.jsx
+│   │   │   ├── C2PAPanel.jsx
+│   │   │   ├── DetectionLog.jsx
+│   │   │   ├── PDFExporter.jsx
+│   │   │   └── ErrorBoundary.jsx
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── index.css
+│   ├── package.json
+│   ├── Dockerfile
+│   ├── tailwind.config.js
+│   └── vite.config.js
+├── docker-compose.yml
+├── .env.example
 └── README.md
 ```
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Backend (FastAPI)
+### Option A: Docker (Recommended)
+
+```bash
+git clone https://github.com/sa9446/SASRIAKAL.git
+cd SASRIAKAL
+
+# Copy environment config
+cp .env.example .env
+
+# Start everything
+docker compose up --build
+```
+
+- **Dashboard:** `http://localhost:5173`
+- **Backend API:** `http://localhost:8000`
+
+### Option B: Manual Setup
+
+#### 1. Backend
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# Install dependencies
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Start the server
+cp ../.env.example ../.env
 python main.py
-# or
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The API will be available at `http://localhost:8000`
+#### 2. Dashboard
 
-**Key Endpoints:**
+```bash
+cd web-dashboard
+npm install
+npm run dev
+```
+
+#### 3. Chrome Extension
+
+1. Navigate to `chrome://extensions/`
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select `extension/` directory
+
+---
+
+## ✨ Features
+
+### 🔍 Real-Time Detection Pipeline
+
+```
+Video Frame ──→ DWT Denoising ──→ MesoInception-4 ──┐
+                                                     ├──→ Ensemble ──→ Confidence + Heatmap
+         ──→ ResNet-50 Feature Extractor ────────────┘
+```
+
+| Feature | Detail |
+|---------|--------|
+| **Glass-to-glass latency** | < 100ms target |
+| **DWT preprocessing** | Removes WhatsApp/Telegram compression artifacts |
+| **Dual-model ensemble** | MesoInception-4 (mesoscopic) + ResNet-50 (semantic) |
+| **Spatial heatmap** | Glowing red/amber overlays on manipulated regions |
+| **GPU acceleration** | Auto-detects CUDA, falls back to CPU |
+
+### 🎤 Audio-Visual Desync Detection
+
+```
+Video Frames ──→ MediaPipe Face Mesh ──→ Viseme Extraction ──┐
+                                                             ├──→ DTW Alignment ──→ Desync Score
+Audio Stream ──→ Spectral Analysis ───→ Phoneme Extraction ──┘
+```
+
+- Detects **voice cloning** and **face swapping** via temporal misalignment
+- **Dynamic Time Warping** with Sakoe-Chiba band constraint
+- Flags specific time ranges with significant desync
+
+### 📜 C2PA Provenance Validation
+
+- Parses JUMBF containers (JPEG/PNG)
+- Validates ISO Base Media File Format UUID boxes (MP4)
+- Verifies cryptographic signatures and hash integrity
+- Detects tampering indicators
+
+### 📄 Court-Ready Evidence PDFs
+
+- Executive summary with detection verdict
+- Per-frame confidence scores and frame hashes
+- AV desync analysis with flagged segments
+- Chain of custody metadata
+- Cryptographic integrity verification
+- Legal disclaimer for admissibility
+
+### 🌐 Chrome Extension
+
+- DOM `<video>` detection on YouTube, social media, WebRTC
+- Offscreen Canvas processing (no DOM thread blocking)
+- Local ONNX WASM inference
+- Transparent heatmap overlay with pulsing glow animation
+
+---
+
+## 📡 API Reference
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/ws/stream` | WebSocket | Real-time frame streaming |
 | `/api/detect` | POST | Single frame detection |
-| `/api/detect/upload` | POST | File upload (image/video) |
-| `/api/av-desync` | POST | AV sync analysis |
+| `/api/detect/upload` | POST | Image/video file upload |
+| `/api/av-desync` | POST | Audio-visual sync analysis |
 | `/api/validate-c2pa` | POST | C2PA provenance check |
 | `/api/generate-report` | POST | Generate evidence PDF |
 | `/api/health` | GET | System health check |
 
-### 2. Web Dashboard (React)
-
-```bash
-cd web-dashboard
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-The dashboard will be available at `http://localhost:5173`
-
-### 3. Chrome Extension
-
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Select the `extension/` directory
-5. The SASRIAKAL icon will appear in your toolbar
-
----
-
-## Features
-
-### Real-Time Detection Pipeline
-
-```
-Video Frame → DWT Denoising → MesoInception-4 ─┐
-                                                ├── Ensemble → Confidence + Heatmap
-                → ResNet-50 Feature Extractor ──┘
-```
-
-- **Glass-to-glass latency** target: < 100ms
-- **DWT preprocessing** removes WhatsApp/Telegram compression artifacts
-- **Dual-model ensemble** combines mesoscopic analysis (MesoInception-4) with semantic features (ResNet-50)
-- **Spatial heatmap** highlights manipulated facial regions with glowing red/amber overlays
-
-### Audio-Visual Desync Detection
-
-```
-Video Frames → MediaPipe Face Mesh → Viseme Extraction ──┐
-                                                         ├── DTW Alignment → Desync Score
-Audio Stream → Spectral Analysis → Phoneme Extraction ──┘
-```
-
-- Detects **voice cloning** and **face swapping** via temporal misalignment
-- Uses **Dynamic Time Warping (DTW)** for phoneme-viseme alignment
-- Flags specific time ranges with significant desynchronization
-
-### C2PA Provenance Validation
-
-- Parses JUMBF containers in JPEG/PNG
-- Validates ISO Base Media File Format (MP4) UUID boxes
-- Checks cryptographic signatures and hash integrity
-- Detects tampering indicators in metadata
-
-### Evidence PDF Generation
-
-Generates court-ready forensic reports with:
-- **Executive Summary** with detection verdict
-- **Detection Results** table with per-frame confidence scores
-- **AV Desync Analysis** with flagged segments
-- **Chain of Custody** metadata
-- **Cryptographic Integrity** verification
-- **Legal Disclaimer** for admissibility
-
-### Chrome Extension
-
-- **DOM Video Hooking**: Automatically detects `<video>` elements on YouTube, social media, etc.
-- **Offscreen Processing**: Runs inference without blocking the main thread
-- **Local ONNX WASM**: Zero-latency in-browser inference for supported models
-- **Canvas Overlay**: Injects transparent heatmap over detected manipulation
-
----
-
-## Model Export (ONNX)
-
-Export MesoInception-4 for browser inference:
-
-```bash
-cd backend
-python -m models.export_onnx --output ../extension/models/ --quantize fp16 --benchmark --js-wrapper
-```
-
-Options:
-- `--quantize`: `fp16` (default), `int8`, or `none`
-- `--benchmark`: Run inference speed test
-- `--js-wrapper`: Generate JavaScript wrapper for browser use
-
----
-
-## Configuration
-
-### Confidence Threshold
-
-Default threshold: **0.65** (65%)
-
-Adjust via the dashboard controls or the Chrome Extension popup. When confidence exceeds the threshold:
-- Heatmap overlay is displayed with glowing red/amber gradients
-- Frame is flagged in the detection log
-- Alert badge appears on the video overlay
-
-### Inference Modes
-
-| Mode | Description |
-|------|-------------|
-| **Local WASM** | Browser-only ONNX inference via WebAssembly |
-| **Backend WS** | WebSocket streaming to FastAPI backend |
-| **Ensemble** | Combined local + backend predictions |
-
----
-
-## API Reference
-
 ### POST `/api/detect`
 
+**Request:**
 ```json
 {
   "frame": "<base64-encoded-image>",
@@ -207,7 +215,7 @@ Adjust via the dashboard controls or the Chrome Extension popup. When confidence
 
 ### WebSocket `/ws/stream`
 
-Send JSON frames:
+**Send:**
 ```json
 {
   "frame": "<base64>",
@@ -217,24 +225,73 @@ Send JSON frames:
 }
 ```
 
-Receive detection results in the same format as `/api/detect`.
+**Receive:** Same format as `/api/detect` response.
 
 ---
 
-## Technical Details
+## 🐳 Docker
 
-### MesoInception-4 Architecture
+```bash
+# Start full stack (backend + dashboard)
+docker compose up --build
 
-- Lightweight 8-layer inception network specialized for mesoscopic image analysis
-- Inception blocks with parallel 1×1 and 3×3 convolutions
+# Backend only
+docker compose up backend
+
+# With GPU support (requires nvidia-container-toolkit)
+docker compose up --build
+```
+
+Environment variables are configured via `.env` (see `.env.example`).
+
+---
+
+## ⚙️ Configuration
+
+All settings are managed via environment variables. Copy `.env.example` to `.env` and adjust:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SASRIAKAL_PORT` | `8000` | Backend API port |
+| `SASRIAKAL_DEVICE` | `auto` | `auto`, `cpu`, or `cuda` |
+| `SASRIAKAL_THRESHOLD` | `0.65` | Detection confidence threshold |
+| `SASRIAKAL_MAX_UPLOAD_MB` | `100` | Max upload file size |
+| `SASRIAKAL_MAX_WS` | `50` | Max concurrent WebSocket connections |
+| `SASRIAKAL_WS_FPS_LIMIT` | `30` | Server-side frame rate cap |
+| `SASRIAKAL_LOG_LEVEL` | `INFO` | Logging verbosity |
+
+---
+
+## 🧪 Testing
+
+```bash
+cd backend
+pip install pytest
+pytest tests/ -v
+```
+
+Tests cover:
+- Configuration loading and env overrides
+- DWT denoising pipeline (shape, dtype, noise reduction)
+- Ensemble model (predict, IoU, NMS, GPU device)
+- AV desync engine (viseme/phoneme extraction, DTW alignment, edge cases)
+
+---
+
+## 🏗️ Architecture
+
+### MesoInception-4
+
+Lightweight 8-layer inception network specialized for mesoscopic image analysis:
+- Parallel 1×1 and 3×3 convolution branches
 - Spatial attention map for heatmap generation
-- Designed for <50ms inference on CPU
+- <50ms inference on CPU
 
 ### ResNet-50 Feature Extractor
 
 - Pretrained on ImageNet with transfer learning
-- Grad-CAM for gradient-weighted class activation mapping
-- Custom classification head (2048 → 512 → 128 → 1)
+- Grad-CAM heatmap (computed separately, not during fast inference)
+- Classification head: 2048 → 512 → 128 → 1
 - Dropout regularization (0.4, 0.3)
 
 ### Ensemble Weighting
@@ -246,25 +303,21 @@ Receive detection results in the same format as `/api/detect`.
 
 ### DWT Denoising
 
-- **Wavelet**: Daubechies-4 (db4)
-- **Decomposition Level**: 2
-- **Thresholding**: Soft thresholding with MAD noise estimation
-- **Effect**: Removes high-frequency compression artifacts from messaging apps
+- **Wavelet:** Daubechies-4 (db4)
+- **Levels:** 2-level decomposition
+- **Thresholding:** Soft thresholding with MAD noise estimation
+- **Effect:** Removes H.264/H.265 compression artifacts from messaging apps
 
 ---
 
-## License
+## 📜 License
 
 MIT
 
 ---
 
-## Credits
+<div align="center">
 
-Built with:
-- **PyTorch** — Neural network framework
-- **FastAPI** — Async WebSocket streaming
-- **MediaPipe** — Face mesh landmark detection
-- **ReportLab** — PDF evidence generation
-- **ONNX Runtime Web** — Browser WASM inference
-- **React + Tailwind CSS** — Dashboard UI
+**Built with** PyTorch · FastAPI · MediaPipe · ReportLab · ONNX Runtime · React · Tailwind CSS
+
+</div>
