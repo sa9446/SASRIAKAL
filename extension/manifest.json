@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "SASRIAKAL - Deepfake Detector",
+  "version": "1.0.0",
+  "description": "Real-time deepfake detection with local ONNX inference, heatmap overlays, and evidence reporting.",
+  "permissions": [
+    "activeTab",
+    "offscreen",
+    "storage",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*.youtube.com/*",
+    "https://*.facebook.com/*",
+    "https://*.twitter.com/*",
+    "https://*.tiktok.com/*",
+    "https://*.instagram.com/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": [],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["overlay.js", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

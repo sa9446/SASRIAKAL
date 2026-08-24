@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SASRIAKAL</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 380px;
+      min-height: 520px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0a1628 100%);
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(0, 255, 136, 0.15);
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #00ff88, #00ccff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 6px #ef4444;
+      transition: all 0.3s;
+    }
+
+    .status-dot.active {
+      background: #00ff88;
+      box-shadow: 0 0 8px #00ff88;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 6px #00ff88; }
+      50% { box-shadow: 0 0 14px #00ff88; }
+    }
+
+    .toggle-btn {
+      background: rgba(0, 255, 136, 0.1);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      color: #00ff88;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .toggle-btn:hover {
+      background: rgba(0, 255, 136, 0.2);
+    }
+
+    .toggle-btn.active {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+    }
+
+    .metrics {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .metric-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-value.safe { color: #00ff88; }
+    .metric-value.warning { color: #fbbf24; }
+    .metric-value.danger { color: #ef4444; }
+
+    .confidence-bar {
+      margin: 0 20px 16px;
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .confidence-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      transition: width 0.5s ease, background 0.5s ease;
+    }
+
+    .section {
+      padding: 14px 20px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    .mode-select {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #9ca3af;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.selected {
+      background: rgba(0, 204, 255, 0.12);
+      border-color: rgba(0, 204, 255, 0.4);
+      color: #00ccff;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.12), rgba(0, 204, 255, 0.12));
+      border: 1px solid rgba(0, 255, 136, 0.25);
+      color: #00ff88;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .action-btn:hover {
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 204, 255, 0.2));
+      transform: translateY(-1px);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .log {
+      padding: 12px 20px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      max-height: 100px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      color: #6b7280;
+      padding: 2px 0;
+    }
+
+    .log-entry.danger { color: #ef4444; }
+    .log-entry.warning { color: #fbbf24; }
+    .log-entry.safe { color: #00ff88; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🛡️ SASRIAKAL</h1>
+    <p>Real-Time Deepfake Detection</p>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-indicator">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Inactive</span>
+    </div>
+    <button class="toggle-btn" id="toggleBtn">START</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-label">Confidence</div>
+      <div class="metric-value safe" id="confidenceValue">0.0%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">AV Desync</div>
+      <div class="metric-value safe" id="desyncValue">0.0%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Frames</div>
+      <div class="metric-value" id="frameCount" style="color: #00ccff">0</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">FPS</div>
+      <div class="metric-value" id="fpsValue" style="color: #a78bfa">0</div>
+    </div>
+  </div>
+
+  <div class="confidence-bar">
+    <div class="confidence-fill" id="confidenceFill"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Inference Mode</div>
+    <div class="mode-select">
+      <button class="mode-btn selected" data-mode="local">Local WASM</button>
+      <button class="mode-btn" data-mode="backend">Backend WS</button>
+      <button class="mode-btn" data-mode="ensemble">Ensemble</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Evidence</div>
+    <button class="action-btn" id="exportPdfBtn" disabled>📄 Export Evidence PDF</button>
+  </div>
+
+  <div class="log" id="logContainer">
+    <div class="log-entry safe">System ready. Click START to begin detection.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

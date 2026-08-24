@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head><title>SASRIAKAL Offscreen Worker</title></head>
+<body>
+  <script>
+    // Offscreen document for ONNX WASM inference
+    // Loaded by background.js via Chrome Offscreen API
+    console.log("[SASRIAKAL] Offscreen document loaded");
+
+    // ONNX session will be initialized here when needed
+    let onnxSession = null;
+
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (msg.type === "INIT_ONNX") {
+        // Initialize ONNX Runtime Web
+        importScripts("https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js").catch(() => {
+          console.warn("[SASRIAKAL] ONNX Runtime Web not available offline");
+        });
+        sendResponse({ status: "ready" });
+      }
+    });
+  </script>
+</body>
+</html>
