@@ -13,6 +13,8 @@ let offscreenDocumentCreated = false;
 let wsConnection = null;
 let isProcessing = false;
 let lastFrameTime = 0;
+let framesSent = 0;
+let framesSkipped = 0;
 
 // ── Offscreen Document Management ──────────────────────────────────────────────
 
@@ -40,6 +42,7 @@ function connectWebSocket() {
   if (wsConnection && wsConnection.readyState === WebSocket.OPEN) return;
 
   try {
+    console.log("[SASRIAKAL] Connecting WebSocket to", BACKEND_WS_URL);
     wsConnection = new WebSocket(BACKEND_WS_URL);
 
     wsConnection.onopen = () => {
@@ -63,26 +66,47 @@ function connectWebSocket() {
 
     wsConnection.onclose = () => {
       console.log("[SASRIAKAL] WebSocket disconnected, reconnecting in 3s...");
+      wsConnection = null;
       chrome.storage.local.set({ wsStatus: "disconnected" });
-      setTimeout(connectWebSocket, 3000);
+      if (isProcessing) {
+        setTimeout(connectWebSocket, 3000);
+      }
     };
   } catch (err) {
     console.error("[SASRIAKAL] WebSocket connection failed:", err);
-    setTimeout(connectWebSocket, 5000);
+    if (isProcessing) {
+      setTimeout(connectWebSocket, 5000);
+    }
   }
 }
 
 function sendFrameToBackend(base64Frame, tabId, timestamp) {
-  if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) return;
+  if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+    framesSkipped++;
+    if (framesSkipped % 30 === 1) {
+      console.warn(
+        `[SASRIAKAL] WebSocket not open — ${framesSkipped} frames skipped`
+      );
+    }
+    return;
+  }
 
-  wsConnection.send(
-    JSON.stringify({
-      frame: base64Frame,
-      tab_id: tabId,
-      timestamp: timestamp,
-      source: "extension",
-    })
-  );
+  try {
+    wsConnection.send(
+      JSON.stringify({
+        frame: base64Frame,
+        tab_id: tabId,
+        timestamp: timestamp,
+        source: "extension",
+      })
+    );
+    framesSent++;
+    if (framesSent % 30 === 1) {
+      console.log(`[SASRIAKAL] ${framesSent} frames sent to backend`);
+    }
+  } catch (err) {
+    console.error("[SASRIAKAL] Failed to send frame:", err);
+  }
 }
 
 // ── Detection Result Handler ───────────────────────────────────────────────────
@@ -102,17 +126,19 @@ function handleDetectionResult(result) {
   });
 
   // Send result to content script for overlay rendering
-  chrome.tabs.sendMessage(tab_id, {
-    type: "DETECTION_RESULT",
-    payload: {
-      confidence,
-      heatmap,
-      av_desync,
-      threshold: CONFIDENCE_THRESHOLD,
-    },
-  }).catch(() => {
-    // Tab might not have content script loaded
-  });
+  chrome.tabs
+    .sendMessage(tab_id, {
+      type: "DETECTION_RESULT",
+      payload: {
+        confidence,
+        heatmap,
+        av_desync,
+        threshold: CONFIDENCE_THRESHOLD,
+      },
+    })
+    .catch(() => {
+      // Tab might not have content script loaded
+    });
 }
 
 // ── Message Router ─────────────────────────────────────────────────────────────
@@ -140,6 +166,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "START_DETECTION": {
       isProcessing = true;
+      framesSent = 0;
+      framesSkipped = 0;
       connectWebSocket();
       chrome.storage.local.set({ detectionActive: true });
       sendResponse({ status: "started" });
@@ -154,13 +182,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     case "GET_DETECTION_STATUS": {
-      chrome.storage.local.get([`detection_${tabId}`, "detectionActive", "wsStatus"], (data) => {
-        sendResponse({
-          active: data.detectionActive || false,
-          wsStatus: data.wsStatus || "disconnected",
-          lastResult: data[`detection_${tabId}`] || null,
-        });
-      });
+      chrome.storage.local.get(
+        [`detection_${tabId}`, "detectionActive", "wsStatus"],
+        (data) => {
+          sendResponse({
+            active: data.detectionActive || false,
+            wsStatus: data.wsStatus || "disconnected",
+            lastResult: data[`detection_${tabId}`] || null,
+          });
+        }
+      );
       return true; // async response
     }
 
@@ -171,11 +202,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-        .then((res) => res.blob())
-        .then((blob) => {
-          const url = URL.createObjectURL(blob);
+        .then((res) => res.arrayBuffer())
+        .then((buf) => {
+          // Convert to base64 data URL (URL.createObjectURL is unavailable in MV3 service workers)
+          const bytes = new Uint8Array(buf);
+          let binary = "";
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const dataUrl = "data:application/pdf;base64," + btoa(binary);
           chrome.downloads.download({
-            url,
+            url: dataUrl,
             filename: `sasriakal-evidence-${Date.now()}.pdf`,
             saveAs: true,
           });

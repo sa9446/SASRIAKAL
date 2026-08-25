@@ -9,24 +9,83 @@
 
   const POLL_INTERVAL_MS = 2000;
   const CAPTURE_QUALITY = 0.85;
-  const CANVAS_SCALE = 0.5; // downscale for inference speed
+  const CANVAS_SCALE = 0.5;
+  const SYNC_INTERVAL_MS = 2000;
   let managedVideos = new WeakMap();
   let overlayCanvases = new WeakMap();
   let isActive = false;
   let pollTimer = null;
+  let syncTimer = null;
+  let totalCaptures = 0;
+
+  // ── Visible Page Indicator ───────────────────────────────────────────────────
+  // Shows a small badge so you can tell the content script is alive without
+  // opening DevTools.
+
+  const badge = document.createElement("div");
+  badge.id = "sasriakal-badge";
+  badge.textContent = "🛡️ SASRIAKAL";
+  badge.style.cssText = `
+    position: fixed; bottom: 8px; right: 8px; z-index: 2147483647;
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    font-family: monospace; pointer-events: none;
+    background: rgba(0,0,0,0.7); color: #00ff88;
+    border: 1px solid rgba(0,255,136,0.3);
+    transition: opacity 0.3s;
+  `;
+  (document.body || document.documentElement).appendChild(badge);
+
+  function setBadge(msg, color) {
+    badge.textContent = msg;
+    badge.style.color = color || "#00ff88";
+  }
+
+  setBadge("🛡️ SASRIAKAL loaded", "#00ff88");
+  console.log("[SASRIAKAL] Content script loaded on", window.location.href);
 
   // ── Video Discovery ──────────────────────────────────────────────────────────
 
   function discoverVideoElements() {
     const videos = document.querySelectorAll("video");
-    videos.forEach((video) => {
-      if (managedVideos.has(video)) return;
-      if (video.videoWidth === 0 || video.videoHeight === 0) return;
-      if (video.readyState < 2) return; // HAVE_CURRENT_DATA minimum
+    let found = false;
 
+    videos.forEach((video, i) => {
+      const info = `video[${i}]: ${video.videoWidth}x${video.videoHeight} readyState=${video.readyState} paused=${video.paused}`;
+
+      if (managedVideos.has(video)) return;
+
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        console.log(`[SASRIAKAL] ${info} → skip: zero dimensions`);
+        return;
+      }
+      if (video.readyState < 2) {
+        console.log(`[SASRIAKAL] ${info} → skip: readyState < 2`);
+        return;
+      }
+
+      console.log(`[SASRIAKAL] ${info} → setting up interception`);
       setupVideoInterception(video);
-      managedVideos.set(video, { active: true, frameCount: 0 });
+      found = true;
     });
+
+    if (videos.length === 0) {
+      console.log("[SASRIAKAL] No <video> elements found on page");
+    }
+
+    // Update badge
+    const managedCount = countManaged();
+    if (managedCount > 0) {
+      setBadge(`🛡️ SASRIAKAL • ${managedCount} video(s) tracked`, isActive ? "#00ff88" : "#fbbf24");
+    }
+  }
+
+  function countManaged() {
+    let count = 0;
+    // WeakMap isn't iterable, so count by checking all videos
+    document.querySelectorAll("video").forEach((v) => {
+      if (managedVideos.has(v)) count++;
+    });
+    return count;
   }
 
   function setupVideoInterception(video) {
@@ -80,7 +139,7 @@
     // Frame capture loop
     const captureLoop = () => {
       if (!isActive || video.paused || video.ended || video.readyState < 2) {
-        requestAnimationFrame(captureLoop);
+        video._sasriakalRafId = requestAnimationFrame(captureLoop);
         return;
       }
 
@@ -95,27 +154,42 @@
         const base64Frame = captureCanvas.toDataURL("image/jpeg", CAPTURE_QUALITY);
 
         // Send frame to background for processing
-        chrome.runtime.sendMessage({
-          type: "CAPTURE_FRAME",
-          payload: {
-            base64Frame,
-            videoId,
-            width: video.videoWidth,
-            height: video.videoHeight,
+        chrome.runtime.sendMessage(
+          {
+            type: "CAPTURE_FRAME",
+            payload: {
+              base64Frame,
+              videoId,
+              width: video.videoWidth,
+              height: video.videoHeight,
+            },
           },
-        });
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn("[SASRIAKAL] CAPTURE_FRAME failed:", chrome.runtime.lastError.message);
+            }
+          }
+        );
+
+        totalCaptures++;
+        if (totalCaptures % 15 === 1) {
+          console.log(`[SASRIAKAL] ✓ Captured ${totalCaptures} frames`);
+          setBadge(`🛡️ SASRIAKAL • ${totalCaptures} frames`, "#00ff88");
+        }
 
         const meta = managedVideos.get(video);
         if (meta) meta.frameCount++;
       } catch (err) {
-        // Canvas tainted by CORS - silently skip
-        console.debug("[SASRIAKAL] Frame capture blocked (CORS):", err.message);
+        console.warn("[SASRIAKAL] Frame capture error:", err.message);
+        if (err.name === "SecurityError") {
+          setBadge("🛡️ SASRIAKAL • CORS blocked", "#ef4444");
+        }
       }
 
-      requestAnimationFrame(captureLoop);
+      video._sasriakalRafId = requestAnimationFrame(captureLoop);
     };
 
-    requestAnimationFrame(captureLoop);
+    video._sasriakalRafId = requestAnimationFrame(captureLoop);
 
     // Store references
     managedVideos.set(video, {
@@ -128,6 +202,8 @@
       resizeObserver,
       frameCount: 0,
     });
+
+    console.log(`[SASRIAKAL] ✓ Interception set up (${video.videoWidth}x${video.videoHeight})`);
   }
 
   // ── Detection Result Handler ─────────────────────────────────────────────────
@@ -138,10 +214,11 @@
       renderOverlayResults(confidence, heatmap, av_desync, threshold);
     }
     if (message.type === "TOGGLE_DETECTION") {
-      isActive = message.payload.active;
-      if (isActive) {
+      const shouldBeActive = message.payload.active;
+      console.log(`[SASRIAKAL] TOGGLE_DETECTION: active=${shouldBeActive}`);
+      if (shouldBeActive && !isActive) {
         startPolling();
-      } else {
+      } else if (!shouldBeActive && isActive) {
         stopPolling();
       }
     }
@@ -158,62 +235,39 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (confidence >= threshold && heatmap) {
-        // Draw heatmap rectangles over detected manipulations
         canvas.style.opacity = "0.85";
 
         heatmap.forEach((box) => {
           const { x, y, w, h, score } = box;
-
-          // Red/amber gradient based on severity
           const intensity = Math.min(1, (confidence - threshold) / (1 - threshold));
-          const r = Math.round(255);
+          const r = 255;
           const g = Math.round(255 * (1 - intensity));
           const b = 0;
           const alpha = 0.3 + intensity * 0.4;
 
-          // Glow effect
           ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
           ctx.shadowBlur = 15 + intensity * 20;
-
-          // Bounding box
           ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.9)`;
           ctx.lineWidth = 3;
           ctx.strokeRect(x, y, w, h);
-
-          // Semi-transparent fill
           ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
           ctx.fillRect(x, y, w, h);
-
-          // Reset shadow
           ctx.shadowBlur = 0;
 
-          // Score label
           ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
           ctx.font = "bold 16px monospace";
-          ctx.fillText(
-            `${(score * 100).toFixed(1)}%`,
-            x + 4,
-            y - 6 > 14 ? y - 6 : y + 16
-          );
+          ctx.fillText(`${(score * 100).toFixed(1)}%`, x + 4, y - 6 > 14 ? y - 6 : y + 16);
         });
 
-        // AV Desync warning badge
         if (av_desync && av_desync.score > 0.5) {
           ctx.fillStyle = "rgba(255, 60, 60, 0.9)";
           ctx.beginPath();
-          if (ctx.roundRect) {
-            ctx.roundRect(canvas.width - 220, 10, 210, 36, 8);
-          } else {
-            ctx.rect(canvas.width - 220, 10, 210, 36);
-          }
+          if (ctx.roundRect) ctx.roundRect(canvas.width - 220, 10, 210, 36, 8);
+          else ctx.rect(canvas.width - 220, 10, 210, 36);
           ctx.fill();
           ctx.fillStyle = "#ffffff";
           ctx.font = "bold 13px sans-serif";
-          ctx.fillText(
-            `⚠ AV DESYNC: ${(av_desync.score * 100).toFixed(1)}%`,
-            canvas.width - 210,
-            34
-          );
+          ctx.fillText(`⚠ AV DESYNC: ${(av_desync.score * 100).toFixed(1)}%`, canvas.width - 210, 34);
         }
       } else {
         canvas.style.opacity = "0";
@@ -225,7 +279,10 @@
   // ── Polling & Lifecycle ──────────────────────────────────────────────────────
 
   function startPolling() {
+    if (isActive) return;
     isActive = true;
+    console.log("[SASRIAKAL] ✓ Detection started — capturing frames");
+    setBadge("🛡️ SASRIAKAL • scanning…", "#00ff88");
     discoverVideoElements();
     pollTimer = setInterval(discoverVideoElements, POLL_INTERVAL_MS);
   }
@@ -236,25 +293,63 @@
       clearInterval(pollTimer);
       pollTimer = null;
     }
-    // Clean up overlays
+    document.querySelectorAll("video").forEach((video) => {
+      if (video._sasriakalRafId) {
+        cancelAnimationFrame(video._sasriakalRafId);
+        video._sasriakalRafId = null;
+      }
+    });
     document.querySelectorAll("canvas[id^='sasriakal-overlay-']").forEach((c) => c.remove());
+    setBadge("🛡️ SASRIAKAL • paused", "#fbbf24");
+    console.log("[SASRIAKAL] Detection stopped");
+  }
+
+  // ── Periodic Storage Sync ────────────────────────────────────────────────────
+  // Keeps content script in sync with the storage flag even if
+  // TOGGLE_DETECTION was missed.
+
+  function syncWithStorage() {
+    try {
+      chrome.storage.local.get("detectionActive", (data) => {
+        if (chrome.runtime.lastError) {
+          console.warn("[SASRIAKAL] Storage read error:", chrome.runtime.lastError.message);
+          return;
+        }
+        const shouldBeActive = !!data.detectionActive;
+        if (shouldBeActive && !isActive) {
+          console.log("[SASRIAKAL] Storage sync → activating");
+          startPolling();
+        } else if (!shouldBeActive && isActive) {
+          console.log("[SASRIAKAL] Storage sync → deactivating");
+          stopPolling();
+        }
+      });
+    } catch (e) {
+      console.warn("[SASRIAKAL] Storage sync exception:", e.message);
+    }
   }
 
   // ── Initialize ───────────────────────────────────────────────────────────────
 
-  // Listen for toggle from popup
-  chrome.storage.local.get("detectionActive", (data) => {
-    if (data.detectionActive) {
-      startPolling();
-    }
-  });
+  // Run immediately and then on interval
+  syncWithStorage();
+  syncTimer = setInterval(syncWithStorage, SYNC_INTERVAL_MS);
 
-  // Auto-start on load
-  chrome.runtime.sendMessage({ type: "GET_DETECTION_STATUS" }, (response) => {
-    if (response?.active) {
-      startPolling();
-    }
-  });
+  // Also try to get status from background
+  try {
+    chrome.runtime.sendMessage({ type: "GET_DETECTION_STATUS" }, (response) => {
+      if (chrome.runtime.lastError || !response) {
+        console.log("[SASRIAKAL] GET_DETECTION_STATUS: no response (background may be sleeping)");
+        return;
+      }
+      console.log("[SASRIAKAL] GET_DETECTION_STATUS:", JSON.stringify(response));
+      if (response.active && !isActive) {
+        startPolling();
+      }
+    });
+  } catch (e) {
+    console.warn("[SASRIAKAL] GET_DETECTION_STATUS failed:", e.message);
+  }
 
-  console.log("[SASRIAKAL] Content script loaded");
+  console.log("[SASRIAKAL] Content script initialized — sync every", SYNC_INTERVAL_MS, "ms");
 })();
