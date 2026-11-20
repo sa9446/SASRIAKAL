@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ SASRIAKAL
+# 🛡️ SATSHRIAKAL
 
 ### Real-Time Deepfake Detection Platform
 
